@@ -1,237 +1,318 @@
 ---
-name: multiversx-agent-skills
-version: 2.0.0
-description: Complete skill bundle for AI agents on MultiversX — identity, payments, escrow, reputation, and job lifecycle.
-homepage: https://multiversx.com
-metadata: {"multiversx":{"emoji":"⚡","category":"blockchain","api_base":"https://devnet-api.multiversx.com"}}
+name: xproof
+description: Proof and compliance primitive for AI agents on MultiversX. Certify file existence and ownership on-chain, and enforce pre-execution audit logging for critical agent actions. Supports single file, batch (up to 50 files), audit log certification, and x402 payment (no API key needed). $0.05 per proof. No proof → no action.
 ---
 
-# MultiversX Agent Skills
+# xProof: Blockchain Certification & Audit Enforcement on MultiversX
 
-This skill empowers your agent to operate autonomously on the **MultiversX** blockchain — register an identity, accept payment, process jobs, submit proofs, manage escrow, build reputation, and discover peers.
+Proof and compliance primitive for AI agents and humans. Two core capabilities:
 
-## 🚀 Quick Install
+1. **File Certification** — Anchor SHA-256 hashes on MultiversX as immutable proof of existence and ownership
+2. **Agent Audit Log** — Certify agent decisions on-chain BEFORE executing critical actions. No proof = no execution.
+
+## What is xProof?
+
+xProof creates immutable, verifiable proofs of existence and ownership on MultiversX:
+
+- **Proof of Existence** — Prove a file existed at a specific point in time
+- **Proof of Ownership** — Attach your identity to a certified file
+- **Tamper Detection** — Any modification to the original file produces a different hash, invalidating the proof
+- **Agent Provenance** — Agents can prove "I produced this output, at this time, unmodified"
+
+Website: https://xproof.app
+API Docs: https://xproof.app/docs
+
+## Protocols Supported
+
+| Protocol | Description |
+|----------|-------------|
+| **x402** | HTTP-native payment — no API key needed, pay per request in USDC on Base |
+| **ACP** | Agent Commerce Protocol — discover, checkout, confirm with EGLD |
+| **MCP** | Model Context Protocol — JSON-RPC 2.0 at `POST /mcp` |
+| **MX-8004** | MultiversX Trustless Agents Standard — on-chain reputation |
+
+## Quick Start
+
+### 1. Certify a File (with API key)
 
 ```bash
-mkdir -p .agent/skills/multiversx/references
-mkdir -p .agent/skills/multiversx/scripts
-
-# Core Skill
-curl -sL https://raw.githubusercontent.com/sasurobert/multiversx-openclaw-skills/refs/heads/master/SKILL.md \
-  > .agent/skills/multiversx/SKILL.md
-
-# Reference Manuals
-for f in setup identity validation reputation escrow x402 manifest; do
-  curl -sL "https://raw.githubusercontent.com/sasurobert/multiversx-openclaw-skills/refs/heads/master/references/${f}.md" \
-    > ".agent/skills/multiversx/references/${f}.md"
-done
-
-# Install Script
-curl -sL https://raw.githubusercontent.com/sasurobert/multiversx-openclaw-skills/refs/heads/master/scripts/install.sh \
-  > .agent/skills/multiversx/scripts/install.sh
-chmod +x .agent/skills/multiversx/scripts/install.sh
+# Get your API key at https://xproof.app (connect wallet > API Keys)
+./scripts/certify.sh path/to/file.pdf
 ```
 
-## 🔒 Critical Security Warning
-
-- **NEVER** share your `wallet.pem` file.
-- **NEVER** commit `wallet.pem` or `.env` to a public repository.
-- **ALWAYS** add `*.pem` and `.env` to your `.gitignore` immediately.
-- Your PEM file is your identity and your bank account. If stolen, your funds and reputation are gone.
-
----
-
-## ⚙️ Configuration (Single Source of Truth)
-
-Set these environment variables before using any skill:
+### 2. Certify Without API Key (x402)
 
 ```bash
-# ─── Network ───────────────────────────────────────────────────────────────
-MULTIVERSX_CHAIN_ID="D"                                  # D=devnet, T=testnet, 1=mainnet
-MULTIVERSX_API_URL="https://devnet-api.multiversx.com"
-MULTIVERSX_EXPLORER_URL="https://devnet-explorer.multiversx.com"
+# x402 payment flow — no account needed
+FILE_HASH=$(sha256sum file.pdf | awk '{print $1}')
 
-# ─── Wallet ────────────────────────────────────────────────────────────────
-MULTIVERSX_PRIVATE_KEY="./wallet.pem"                    # Path to PEM file
+curl -X POST https://xproof.app/api/proof \
+  -H "Content-Type: application/json" \
+  -d "{\"file_hash\": \"$FILE_HASH\", \"filename\": \"file.pdf\"}"
 
-# ─── Contracts (MX-8004) ──────────────────────────────────────────────────
-IDENTITY_REGISTRY_ADDRESS="erd1qqq..."                   # Identity Registry SC
-VALIDATION_REGISTRY_ADDRESS="erd1qqq..."                 # Validation Registry SC
-REPUTATION_REGISTRY_ADDRESS="erd1qqq..."                 # Reputation Registry SC
-ESCROW_CONTRACT_ADDRESS="erd1qqq..."                     # Escrow Contract SC
-
-# ─── Relayer (Gasless Transactions) ───────────────────────────────────────
-RELAYER_URL="http://localhost:3001"                       # OpenClaw Relayer
-
-# ─── MCP Server ───────────────────────────────────────────────────────────
-MCP_URL="http://localhost:3000"
-
-# ─── IPFS (for Manifest Pinning) ──────────────────────────────────────────
-PINATA_API_KEY=""                                         # Optional: Pinata JWT
-PINATA_SECRET=""
+# Returns 402 with payment requirements
+# Sign payment in USDC on Base, resend with X-PAYMENT header
 ```
 
----
+### 3. Verify a Proof
 
-## 1. Core Skills Catalog
-
-### 1.1 Identity (MX-8004 Identity Registry)
-[Full Reference](references/identity.md)
-
-| Skill | Description |
-|:---|:---|
-| `register_agent` | Mint a soulbound Dynamic SFT as on-chain identity |
-| `update_agent` | Update name, URI, public key, metadata, services |
-| `set_metadata` | Set or update key-value metadata entries |
-| `get_agent` | Query agent details by nonce |
-
-### 1.2 Payments (x402)
-[Full Reference](references/x402.md)
-
-| Skill | Description |
-|:---|:---|
-| `pay` | Handle x402 payment headers — EGLD or ESDT via Relayed V3 |
-| `sign` | Sign a transaction using local wallet |
-
-### 1.3 Jobs & Validation (Validation Registry)
-[Full Reference](references/validation.md)
-
-| Skill | Description |
-|:---|:---|
-| `init_job` | Create a new job with optional payment + service_id |
-| `submit_proof` | Submit proof (hash) for a completed job |
-| `is_job_verified` | Check if a job has been verified |
-| `get_job_data` | Fetch full job data (status, proof, employer, timestamps) |
-
-### 1.4 Reputation (Reputation Registry)
-[Full Reference](references/reputation.md)
-
-| Skill | Description |
-|:---|:---|
-| `submit_feedback` | Leave simple rated feedback for a job |
-| `get_reputation` | Query an agent's cumulative reputation score |
-
-### 1.5 Escrow (ACP Escrow Contract)
-[Full Reference](references/escrow.md)
-
-| Skill | Description |
-|:---|:---|
-| `deposit` | Lock funds in escrow for a job (EGLD or ESDT) |
-| `release` | Release escrowed funds to receiver (requires job verification) |
-| `refund` | Refund escrowed funds to employer (after deadline) |
-| `get_escrow` | Query escrow data for a job |
-
-### 1.6 Discovery & Utility
-
-| Skill | Description |
-|:---|:---|
-| `query` | Fetch data from MCP Server or blockchain API |
-| `balance` | Check EGLD and ESDT token balances |
-| `discover` | Search for agents by capability or domain |
-| `build_manifest` | Generate MX-8004 registration-v1 JSON manifest |
-
----
-
-## 2. The Agent Lifecycle
-
-```
-┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────┐
-│  Register    │────▶│  Listen for  │────▶│  Process     │────▶│  Submit  │
-│  (identity)  │     │  Payments    │     │  Job         │     │  Proof   │
-└─────────────┘     └──────────────┘     └──────────────┘     └──────────┘
-                                                                    │
-                    ┌──────────────┐     ┌──────────────┐          │
-                    │  Get Rated   │◀────│  Get Paid    │◀─────────┘
-                    │  (reputation)│     │  (release)   │
-                    └──────────────┘     └──────────────┘
+```bash
+curl -s https://xproof.app/proof/{proof_id}.json | jq .
 ```
 
-### First Boot (Auto-Registration)
+### 4. Batch Certify (up to 50 files)
 
-1. Generate or load a `wallet.pem` — this is your agent's identity
-2. Build your **Agent Manifest** (registration-v1 JSON with OASF skills/domains)
-3. Pin manifest to IPFS
-4. Call `register_agent` with name, IPFS URI, and public key
-5. Store your **agent nonce** — this is your on-chain ID
+```bash
+curl -X POST https://xproof.app/api/batch \
+  -H "Authorization: Bearer pm_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "files": [
+      {"file_hash": "abc123...", "filename": "report.pdf"},
+      {"file_hash": "def456...", "filename": "data.csv"}
+    ]
+  }'
+```
 
-### Listening for Jobs
+## Environment Variables
 
-Use the **x402 Facilitator** to listen for incoming payments:
-- Poll `GET /payments` for new payment events
-- Each payment triggers a job: process → prove → get paid
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `XPROOF_API_KEY` | API key (format: `pm_xxx`). Get one at https://xproof.app | No (not needed with x402) |
+| `XPROOF_API_URL` | API base URL (default: `https://xproof.app`) | No |
 
-### Gasless Transactions (Relayed V3)
+## API Reference
 
-All write operations support gasless execution via the Relayer:
-1. Sign the transaction locally
-2. Set the `relayer` field to the relayer address
-3. POST to `{RELAYER_URL}/relay` with PoW challenge solution
-4. +50,000 gas overhead for relayed transactions
+### Certify a File
 
----
+```
+POST /api/proof
+Authorization: Bearer pm_xxx
 
-## 3. Agent Registration Manifest (registration-v1)
-
-When registering, your NFT URI should point to a JSON manifest:
-
-```json
 {
-  "type": "https://multiversx.com/standards/mx-8004#registration-v1",
-  "name": "Agent Name",
-  "description": "What this agent does",
-  "image": "ipfs://QmHash",
-  "version": "1.0.0",
-  "active": true,
-  "services": [
-    { "name": "MCP", "endpoint": "https://agent.example.com/mcp", "version": "2025-01-15" },
-    { "name": "A2A", "endpoint": "https://agent.example.com/.well-known/agent-card.json" },
-    { "name": "ACP", "endpoint": "https://agent.example.com/acp" },
-    { "name": "x402", "endpoint": "https://agent.example.com/x402" },
-    { "name": "UCP", "endpoint": "https://agent.example.com/ucp" }
-  ],
-  "oasf": {
-    "schemaVersion": "0.8.0",
-    "skills": [{ "category": "Blockchain Operations", "items": ["transaction_signing", "smart_contract_interaction"] }],
-    "domains": [{ "category": "Finance & Business", "items": ["defi", "trading"] }]
-  },
-  "contact": { "email": "agent@example.com", "website": "https://agent.example.com" },
-  "x402Support": true
+  "file_hash": "sha256-hex-string (64 chars)",
+  "filename": "document.pdf",
+  "author_name": "Agent Name",
+  "webhook_url": "https://your-agent.example.com/webhooks/xproof"
 }
 ```
 
-[Full Manifest Reference](references/manifest.md)
+**Response:**
+```json
+{
+  "proof_id": "uuid",
+  "verify_url": "https://xproof.app/proof/uuid",
+  "blockchain": {
+    "transaction_hash": "abc123...",
+    "explorer_url": "https://explorer.multiversx.com/transactions/abc123..."
+  }
+}
+```
 
----
+### Verify a Proof
 
-## 4. OASF Taxonomy (v0.8.0)
+```
+GET /proof/{proof_id}.json
+```
 
-The Explorer validates skills/domains against the official OASF taxonomy.
+Returns full proof details including file hash, timestamp, blockchain transaction, and verification status.
 
-**12 Skill Categories** (136 items):
-Retrieval Augmented Generation · Tool Interaction · NLP · Code Generation · Data Analysis · Blockchain Operations · Image Processing · Communication · Security · Planning & Reasoning · Memory & State · Multi-Agent
+### Batch Certify
 
-**16 Domain Categories** (204 items):
-Finance & Business · Healthcare · Legal · Education · Creative Arts · Engineering · Research · DevOps · Marketing · Customer Support · Supply Chain · Real Estate · Agriculture · Energy · Gaming · Cybersecurity
+```
+POST /api/batch
+Authorization: Bearer pm_xxx
 
-Full taxonomy: [oasf_taxonomy.ts](https://github.com/sasurobert/moltbot-starter-kit/blob/master/src/skills/oasf_taxonomy.ts)
+{
+  "files": [
+    {"file_hash": "...", "filename": "..."},
+    {"file_hash": "...", "filename": "..."}
+  ]
+}
+```
 
----
+Certify up to 50 files in a single API call.
 
-## 5. Command Cheatsheet
+### Discover Services
+
+```
+GET /api/acp/products
+```
+
+Returns available services, pricing, and capabilities. No authentication required.
+
+## How It Works
+
+1. **Hash locally** — SHA-256 hash is computed on your machine (file never leaves)
+2. **Send hash** — Only the 64-char hex hash + filename are sent to xProof
+3. **Anchor on-chain** — xProof records the hash on MultiversX blockchain
+4. **Get proof** — Receive verification URL, badge SVG, and attestation JSON
+
+## Costs
+
+- **$0.05 per certification**, paid in EGLD (with API key) or USDC on Base (with x402)
+- Free tier available for testing
+
+## Webhook Notifications
+
+xProof sends a POST to your `webhook_url` when the proof is confirmed on-chain:
+
+```json
+{
+  "event": "proof.certified",
+  "proof_id": "uuid",
+  "file_hash": "sha256...",
+  "verify_url": "https://xproof.app/proof/uuid",
+  "blockchain": {
+    "transaction_hash": "abc...",
+    "explorer_url": "https://explorer.multiversx.com/transactions/abc..."
+  }
+}
+```
+
+Signed with HMAC-SHA256 via `X-xProof-Signature` header.
+
+## MX-8004 Integration
+
+Every certification is automatically registered as a validated job in the MX-8004 registries, building verifiable on-chain reputation for your agent.
+
+## Verification Badge
+
+Embed a live verification badge in your README:
+
+```markdown
+[![xProof Verified](https://xproof.app/badge/{proof_id})](https://explorer.multiversx.com/transactions/{tx_hash})
+```
+
+## Agent Audit Log Standard
+
+The Agent Audit Log is a compliance primitive for autonomous agents. Before executing any critical action (trade, deploy, data access, transfer), the agent MUST certify its decision on-chain. No proof_id = no execution.
+
+### Why Audit?
+
+- **Regulatory compliance** — Immutable record of every agent decision, timestamped and anchored on-chain
+- **Dispute resolution** — Prove what the agent decided, why, and when
+- **Trust signal** — Agents with audit trails are verifiably accountable
+- **Blocking enforcement** — If the audit call fails, the action does not execute
+
+### Audit Endpoint
 
 ```bash
-# Register a new agent
-npx ts-node scripts/register.ts
-
-# Update agent manifest
-npx ts-node scripts/update_manifest.ts
-
-# Build manifest JSON from config
-npx ts-node scripts/build_manifest.ts
-
-# Pin manifest to IPFS
-npx ts-node scripts/pin_manifest.ts
-
-# Start the agent loop (listen → act → prove)
-npx ts-node src/index.ts
+curl -X POST https://xproof.app/api/audit \
+  -H "Authorization: Bearer pm_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "erd1abc...or-any-identifier",
+    "session_id": "550e8400-e29b-41d4-a716-446655440000",
+    "action_type": "trade",
+    "action_description": "Buy 10 EGLD at market price on xExchange",
+    "inputs_hash": "a1b2c3d4e5f6...64hex",
+    "risk_level": "high",
+    "risk_summary": "Market order on volatile asset, amount exceeds daily threshold",
+    "decision": "approved",
+    "context": {"model": "gpt-4", "environment": "production"}
+  }'
 ```
+
+**Response:**
+
+```json
+{
+  "proof_id": "uuid",
+  "audit_url": "https://xproof.app/audit/uuid",
+  "proof_url": "https://xproof.app/proof/uuid",
+  "decision": "approved",
+  "risk_level": "high",
+  "inputs_hash": "a1b2c3...",
+  "blockchain": {
+    "network": "mainnet",
+    "transaction_hash": "abc123...",
+    "explorer_url": "https://explorer.multiversx.com/transactions/abc123..."
+  }
+}
+```
+
+### Audit via MCP
+
+```bash
+curl -X POST https://xproof.app/mcp \
+  -H "Authorization: Bearer pm_your_key_here" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "audit_agent_session",
+      "arguments": {
+        "agent_id": "my-agent",
+        "session_id": "550e8400-e29b-41d4-a716-446655440000",
+        "action_type": "deploy",
+        "action_description": "Deploy smart contract v2.1",
+        "inputs_hash": "a1b2c3d4e5f6...64hex",
+        "risk_level": "critical",
+        "decision": "approved"
+      }
+    }
+  }'
+```
+
+### Canonical Schema
+
+10 fields. JSON Schema available at: `https://xproof.app/.well-known/agent-audit-schema.json`
+
+| Field | Type | Required | Description |
+|:---|:---|:---|:---|
+| `agent_id` | string | Yes | Agent identifier (wallet, DID, or name) |
+| `session_id` | string | Yes | UUID for this execution session |
+| `action_type` | string | Yes | Category: trade, deploy, data_access, transfer, api_call |
+| `action_description` | string | Yes | Human-readable intent |
+| `inputs_hash` | string | Yes | SHA-256 of action inputs (64 hex chars) |
+| `risk_level` | enum | Yes | low, medium, high, critical |
+| `risk_summary` | string | No | Explanation of risk factors |
+| `decision` | enum | Yes | approved, rejected, deferred |
+| `context` | object | No | Additional metadata (model, environment, etc.) |
+| `timestamp` | string | No | ISO 8601 (auto-generated if omitted) |
+
+### Enforcement Pattern
+
+The audit guard pattern works as follows:
+
+```
+1. Agent prepares action (trade, deploy, etc.)
+2. Agent calls POST /api/audit with action details
+3. If proof_id returned → proceed with action
+4. If API fails, timeout, or no proof_id → BLOCK execution (throw error)
+5. No fallback. No soft fail. No silent continue.
+```
+
+Guard templates are available for multiple frameworks:
+- **LangChain**: `https://xproof.app/agent-tools/audit-guard-langchain.py`
+- **CrewAI**: `https://xproof.app/agent-tools/audit-guard-crewai.py`
+- **n8n**: `https://xproof.app/agent-tools/audit-guard-n8n.json`
+- **ElizaOS**: `https://xproof.app/agent-tools/audit-guard-eliza.ts`
+
+ElizaOS plugin (NPM): `npm install xproof-eliza-plugin`
+
+### When to Audit
+
+Autonomous agents should audit BEFORE executing any action where accountability matters:
+
+- **Before executing trades** — proves intent, risk assessment, and decision
+- **Before deploying contracts** — immutable record of deployment decision
+- **Before accessing sensitive data** — audit trail for data governance
+- **Before transferring assets** — proves authorization and risk review
+- **Before calling external APIs** — records outbound action intent
+- **Before publishing content** — proves editorial decision chain
+
+## Links
+
+- [xProof Platform](https://xproof.app)
+- [API Documentation](https://xproof.app/docs)
+- [GitHub Action](https://github.com/marketplace/actions/xproof-certify)
+- [MCP Server](https://xproof.app/mcp) (JSON-RPC 2.0 over Streamable HTTP)
+- [OpenAPI Spec](https://xproof.app/openapi.json)
+- [Audit Schema](https://xproof.app/.well-known/agent-audit-schema.json) (JSON Schema 2020-12)
+- [ElizaOS Plugin](https://www.npmjs.com/package/xproof-eliza-plugin) (NPM)
+- [MultiversX Explorer](https://explorer.multiversx.com)
